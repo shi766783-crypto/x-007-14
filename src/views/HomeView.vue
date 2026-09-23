@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useStatsStore } from '@/stores/stats'
 import { useUserStore } from '@/stores/user'
+import { useDietRecordStore } from '@/stores/dietRecord'
 import BaseTag from '@/components/common/BaseTag.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import { expiryDateKey } from '@/utils/date'
@@ -10,6 +11,7 @@ import { expiryDateKey } from '@/utils/date'
 const inventory = useInventoryStore()
 const stats = useStatsStore()
 const user = useUserStore()
+const diet = useDietRecordStore()
 
 const expired = computed(() => inventory.expiredItems)
 const near = computed(() => inventory.nearExpiryItems)
@@ -37,6 +39,24 @@ const priority = computed(() =>
       <div class="alert-card ok">
         <div class="num">{{ inventory.items.length }}</div>
         <div class="txt">库存总种类</div>
+      </div>
+    </div>
+
+    <div class="card streak-card">
+      <div class="streak-left">
+        <span class="flame">🔥</span>
+        <div>
+          <div class="streak-num">
+            {{ diet.currentStreak > 0 ? `连续打卡 ${diet.currentStreak} 天` : '今天还没打卡' }}
+          </div>
+          <div class="muted small">
+            累计 {{ diet.checkInDays }} 天 · {{ diet.photoCount }} 张美食照片 · 最长 {{ diet.maxStreak }} 天
+          </div>
+        </div>
+      </div>
+      <div class="streak-right">
+        <router-link to="/diet/album" class="ghost-link">饮食相册 →</router-link>
+        <router-link to="/diet" class="streak-btn">去打卡</router-link>
       </div>
     </div>
 
@@ -135,6 +155,47 @@ const priority = computed(() =>
 }
 .link {
   font-size: 13px;
+}
+.streak-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #fff7e6, #fff1f0);
+  border-color: #ffd591;
+}
+.streak-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.streak-left .flame {
+  font-size: 34px;
+}
+.streak-num {
+  font-size: 17px;
+  font-weight: 700;
+  color: #e65100;
+}
+.streak-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ghost-link {
+  font-size: 13px;
+}
+.streak-btn {
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.streak-btn:hover {
+  background: var(--primary-dark);
 }
 .priority-list {
   display: flex;

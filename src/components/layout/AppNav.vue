@@ -8,7 +8,7 @@ const links = [
   { to: '/inventory', label: '食材库存', icon: '🥬', badge: () => inventory.items.length },
   { to: '/meal-plan', label: '每周食谱', icon: '📅' },
   { to: '/shopping', label: '采购清单', icon: '🛒' },
-  { to: '/diet', label: '饮食记录', icon: '🍽️' },
+  { to: '/diet', label: '饮食记录', icon: '🍽️', match: (p) => p.startsWith('/diet') },
   { to: '/dashboard', label: '饮食看板', icon: '📊' },
   { to: '/challenge', label: '清理挑战', icon: '🧹' },
   { to: '/achievements', label: '成就徽章', icon: '🏅' },
@@ -24,7 +24,7 @@ const links = [
       :key="link.to"
       :to="link.to"
       class="nav-item"
-      :class="{ active: $route.path === link.to }"
+      :class="{ active: link.match ? link.match($route.path) : $route.path === link.to }"
     >
       <span class="icon">{{ link.icon }}</span>
       <span class="label">{{ link.label }}</span>

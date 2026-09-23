@@ -8,7 +8,7 @@ const KEY = 'diet-records'
 
 export const useDietRecordStore = defineStore('dietRecord', {
   state: () => ({
-    records: read(KEY, []), // [{ id, date, meal, dishes: [{ name, category }] }]
+    records: read(KEY, []), // [{ id, date, meal, dishes: [{ name, category }], photos: [dataUrl], createdAt }]
   }),
 
   getters: {
@@ -22,6 +22,16 @@ export const useDietRecordStore = defineStore('dietRecord', {
         map[r.date].push(r)
       })
       return map
+    },
+
+    // 有记录的全部日期（去重、倒序）
+    checkInDates(state) {
+      return [...new Set(state.records.map((r) => r.date))].sort().reverse()
+    },
+
+    // 打卡总天数
+    checkInDays() {
+      return this.checkInDates.length
     },
 
     // 某日某餐次的菜品
@@ -70,6 +80,90 @@ export const useDietRecordStore = defineStore('dietRecord', {
       return max
     },
 
+    // 当前连续打卡天数：今天/昨天有记录则连续计数，否则为 0
+    currentStreak() {
+      const dates = new Set(this.records.map((r) => r.date))
+      if (!dates.size) return 0
+      const cursor = new Date()
+      // 今天还没记录时，从昨天起算（不断签）
+      if (!dates.has(toDateKey(cursor))) {
+        cursor.setDate(cursor.getDate() - 1)
+        if (!dates.has(toDateKey(cursor))) return 0
+      }
+      let streak = 0
+      while (dates.has(toDateKey(cursor))) {
+        streak++
+        cursor.setDate(cursor.getDate() - 1)
+      }
+      return streak
+    },
+
+    // 累计照片数
+    photoCount(state) {
+      return state.records.reduce((sum, r) => sum + (r.photos?.length || 0), 0)
+    },
+
+    // 带照片的餐次记录数量
+    photoCheckInCount(state) {
+      return state.records.filter((r) => r.photos?.length).length
+    },
+
+    // 饮食相册：照片打平后按日期倒序（同日按创建时间倒序）
+    // [{ key, url, recordId, date, meal, dishes }]
+    albumPhotos(state) {
+      const createdMap = {}
+      state.records.forEach((r) => {
+        createdMap[r.id] = r.createdAt || 0
+      })
+      const photos = []
+      state.records.forEach((r) => {
+        ;(r.photos || []).forEach((url, i) => {
+          photos.push({
+            key: `${r.id}-${i}`,
+            url,
+            recordId: r.id,
+            date: r.date,
+            meal: r.meal,
+            dishes: r.dishes,
+          })
+        })
+      })
+      return photos.sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1
+        return (createdMap[b.recordId] || 0) - (createdMap[a.recordId] || 0)
+      })
+    },
+
+    // 相册按日期分组（倒序）：[{ date, meals: { 早餐: [...], ... } }]
+    albumByDate() {
+      const map = {}
+      this.albumPhotos.forEach((p) => {
+        if (!map[p.date]) map[p.date] = {}
+        if (!map[p.date][p.meal]) map[p.date][p.meal] = []
+        map[p.date][p.meal].push(p)
+      })
+      return Object.keys(map)
+        .sort()
+        .reverse()
+        .map((date) => ({ date, meals: map[date] }))
+    },
+
+    // 最近 7 天打卡情况（用于日历点）：[{ date, checked, photo }]
+    recentCheckIns() {
+      const today = new Date()
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (6 - i))
+        const key = toDateKey(d)
+        const recs = this.records.filter((r) => r.date === key)
+        return {
+          date: key,
+          checked: recs.length > 0,
+          photo: recs.some((r) => r.photos?.length),
+        }
+      })
+    },
+
     // 营养评分趋势（最近 N 天）
     nutritionTrend: (state) => (n = 7) => {
       const end = new Date()
@@ -90,12 +184,14 @@ export const useDietRecordStore = defineStore('dietRecord', {
       write(KEY, this.records)
     },
 
-    addRecord(date, meal, dishes) {
+    addRecord(date, meal, dishes, photos = []) {
       const rec = {
         id: uid('rec'),
         date,
         meal,
         dishes: dishes.map((d) => ({ name: d.name, category: d.category || '其他' })),
+        photos: photos.filter(Boolean),
+        createdAt: Date.now(),
       }
       this.records.push(rec)
       this.persist()
@@ -111,6 +207,23 @@ export const useDietRecordStore = defineStore('dietRecord', {
 
     removeRecord(id) {
       this.records = this.records.filter((r) => r.id !== id)
+      this.persist()
+    },
+
+    // 给某条记录追加一张照片
+    addPhoto(recordId, dataUrl) {
+      const rec = this.records.find((r) => r.id === recordId)
+      if (!rec || !dataUrl) return
+      if (!rec.photos) rec.photos = []
+      rec.photos.push(dataUrl)
+      this.persist()
+    },
+
+    // 删除某条记录中的指定照片
+    removePhoto(recordId, index) {
+      const rec = this.records.find((r) => r.id === recordId)
+      if (!rec?.photos) return
+      rec.photos.splice(index, 1)
       this.persist()
     },
 

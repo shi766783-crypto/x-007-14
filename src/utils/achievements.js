@@ -85,4 +85,11 @@ export const ACHIEVEMENTS = [
     desc: '连续记录饮食 7 天',
     check: (s) => s.maxStreak >= 7,
   },
+  {
+    id: 'food-photographer',
+    name: '美食摄影家',
+    icon: '📸',
+    desc: '打卡 10 次带照片的餐食',
+    check: (s) => s.photoCheckInCount >= 10,
+  },
 ]

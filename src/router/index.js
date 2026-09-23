@@ -6,6 +6,7 @@ const routes = [
   { path: '/meal-plan', name: 'meal-plan', component: () => import('@/views/MealPlanView.vue'), meta: { title: '每周食谱计划' } },
   { path: '/shopping', name: 'shopping', component: () => import('@/views/ShoppingListView.vue'), meta: { title: '采购清单' } },
   { path: '/diet', name: 'diet', component: () => import('@/views/DietRecordView.vue'), meta: { title: '每日饮食记录' } },
+  { path: '/diet/album', name: 'diet-album', component: () => import('@/views/DietAlbumView.vue'), meta: { title: '饮食相册' } },
   { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: '饮食看板' } },
   { path: '/challenge', name: 'challenge', component: () => import('@/views/ChallengeView.vue'), meta: { title: '冰箱清理挑战' } },
   { path: '/achievements', name: 'achievements', component: () => import('@/views/AchievementsView.vue'), meta: { title: '成就徽章' } },

@@ -93,3 +93,16 @@ export function weekDateKeys(today = new Date()) {
 export function isConsecutive(dateKey, prevDateKey) {
   return diffDays(prevDateKey, dateKey) === 1
 }
+
+export const WEEK_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+// 日期对应的星期中文（如 周六）
+export function weekdayLabel(key) {
+  return WEEK_LABELS[parseDateKey(key).getDay()]
+}
+
+// 相册月份分组标签（如 2026年9月）
+export function monthLabel(key) {
+  const d = parseDateKey(key)
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`
+}

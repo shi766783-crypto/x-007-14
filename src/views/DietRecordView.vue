@@ -9,6 +9,8 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseTag from '@/components/common/BaseTag.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import SimpleChart from '@/components/common/SimpleChart.vue'
+import DietTabs from '@/components/diet/DietTabs.vue'
+import MealPhotoUploader from '@/components/diet/MealPhotoUploader.vue'
 
 const diet = useDietRecordStore()
 const mealPlan = useMealPlanStore()
@@ -16,9 +18,12 @@ const mealPlan = useMealPlanStore()
 const date = ref(toDateKey())
 const meal = ref('早餐')
 const dishes = ref([{ name: '', category: '蔬菜' }])
+const photos = ref([])
 const weekDates = weekDateKeys()
 
-const dayRecords = computed(() => diet.records.filter((r) => r.date === date.value))
+const dayRecords = computed(() =>
+  diet.records.filter((r) => r.date === date.value).sort((a, b) => a.createdAt - b.createdAt),
+)
 const dayDishes = computed(() => dayRecords.value.flatMap((r) => r.dishes))
 const dayScore = computed(() => nutritionScore(dayDishes.value))
 const score = computed(() => scoreLabel(dayScore.value))
@@ -39,6 +44,12 @@ const planDishesForToday = computed(() => {
 const trendLabels = computed(() => weekDates.map((d) => `${parseDateKey(d).getMonth() + 1}/${parseDateKey(d).getDate()}`))
 const trendData = computed(() => weekDates.map((d) => diet.dailyScores[d] || 0))
 
+const todayKey = toDateKey()
+const checkedToday = computed(() => diet.checkInDates.includes(todayKey))
+const checkedTodayWithPhoto = computed(() =>
+  diet.records.some((r) => r.date === todayKey && r.photos?.length),
+)
+
 function addDish() {
   dishes.value.push({ name: '', category: '蔬菜' })
 }
@@ -52,11 +63,17 @@ function importFromPlan() {
   if (!dishes.value.length) dishes.value = [{ name: '', category: '蔬菜' }]
 }
 
+function resetForm() {
+  dishes.value = [{ name: '', category: '蔬菜' }]
+  photos.value = []
+}
+
 function save() {
   const valid = dishes.value.filter((d) => d.name.trim())
-  if (!valid.length) return
-  diet.addRecord(date.value, meal.value, valid)
-  dishes.value = [{ name: '', category: '蔬菜' }]
+  // 允许只拍照打卡（没有填菜品名时也算一次记录）
+  if (!valid.length && !photos.value.length) return
+  diet.addRecord(date.value, meal.value, valid, photos.value)
+  resetForm()
 }
 
 function removeRecord(id) {
@@ -68,6 +85,34 @@ function removeRecord(id) {
   <div>
     <div class="page-head">
       <h2>🍽️ 每日饮食记录</h2>
+    </div>
+
+    <DietTabs active="record" />
+
+    <!-- 连续打卡横幅 -->
+    <div class="streak-banner" :class="{ 'streak-on': diet.currentStreak > 0 }">
+      <div class="streak-main">
+        <span class="flame">🔥</span>
+        <div class="streak-text">
+          <strong v-if="diet.currentStreak > 0">已连续打卡 {{ diet.currentStreak }} 天</strong>
+          <strong v-else>今天还没打卡</strong>
+          <span class="sub">
+            {{ checkedToday ? (checkedTodayWithPhoto ? '今天的美食已留念 ✨' : '再拍张照片更有仪式感') : '记录一餐，开启今天的打卡' }}
+            · 历史最长 {{ diet.maxStreak }} 天
+          </span>
+        </div>
+      </div>
+      <div class="week-dots">
+        <span
+          v-for="d in diet.recentCheckIns"
+          :key="d.date"
+          class="dot"
+          :class="{ on: d.checked, cam: d.photo, today: d.date === todayKey }"
+          :title="d.date"
+        >
+          <span v-if="d.photo">📷</span>
+        </span>
+      </div>
     </div>
 
     <div class="card">
@@ -103,12 +148,17 @@ function removeRecord(id) {
           <BaseButton size="sm" @click="save">保存记录</BaseButton>
         </div>
       </div>
+
+      <div class="photo-block">
+        <label>餐食照片<span class="hint">（拍下来，以后翻相册更有感觉）</span></label>
+        <MealPhotoUploader v-model="photos" :max="6" />
+      </div>
     </div>
 
     <div class="card">
       <div class="section-title">
         <span>{{ date }} 记录</span>
-        <BaseTag :text="`${dayScore} 分 · ${score.label}`" :color="score.color" />
+        <BaseTag :text="dayRecords.length ? `${dayScore} 分 · ${score.label}` : '暂无评分'" :color="dayRecords.length ? score.color : '#90a4ae'" />
       </div>
       <BaseEmpty v-if="!dayRecords.length" emoji="🍚" text="当天还没有记录" />
       <div v-else class="day-records">
@@ -117,8 +167,19 @@ function removeRecord(id) {
             <span class="meal">{{ MEAL_ICONS[r.meal] }} {{ r.meal }}</span>
             <button class="del" @click="removeRecord(r.id)">✕</button>
           </div>
-          <div class="rec-dishes">
+          <div v-if="r.dishes?.length" class="rec-dishes">
             <BaseTag v-for="(d, i) in r.dishes" :key="i" :category="d.category" :text="d.name" />
+          </div>
+          <p v-else class="photo-only muted">📷 照片打卡</p>
+          <div v-if="r.photos?.length" class="rec-photos">
+            <router-link
+              v-for="(p, i) in r.photos"
+              :key="i"
+              :to="{ path: '/diet/album', query: { photo: `${r.id}-${i}` } }"
+              class="rec-photo"
+            >
+              <img :src="p" :alt="`${r.meal}照片${i + 1}`" loading="lazy" />
+            </router-link>
           </div>
         </div>
       </div>
@@ -134,6 +195,68 @@ function removeRecord(id) {
 <style scoped>
 .page-head h2 {
   margin: 0 0 16px;
+}
+.streak-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.streak-banner.streak-on {
+  background: linear-gradient(135deg, #fff7e6, #fff1f0);
+  border-color: #ffd591;
+}
+.streak-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.flame {
+  font-size: 32px;
+  line-height: 1;
+}
+.streak-text {
+  display: flex;
+  flex-direction: column;
+}
+.streak-text strong {
+  font-size: 16px;
+}
+.streak-text .sub {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.week-dots {
+  display: flex;
+  gap: 6px;
+}
+.dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.dot.on {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+.dot.cam {
+  background: #fff3e0;
+  border-color: #ffb74d;
+}
+.dot.today {
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.35);
 }
 .form-grid {
   display: grid;
@@ -198,6 +321,21 @@ function removeRecord(id) {
   justify-content: space-between;
   margin-top: 8px;
 }
+.photo-block {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.photo-block label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.photo-block .hint {
+  font-weight: 400;
+  color: var(--text-2);
+}
 .day-records {
   display: flex;
   flex-direction: column;
@@ -221,5 +359,39 @@ function removeRecord(id) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.photo-only {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.rec-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rec-photo {
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.rec-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+.rec-photo:hover img {
+  transform: scale(1.06);
+}
+@media (max-width: 560px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .actions-col {
+    grid-column: 1 / -1;
+  }
 }
 </style>
