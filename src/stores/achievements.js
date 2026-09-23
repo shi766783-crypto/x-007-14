@@ -35,6 +35,7 @@ export const useAchievementsStore = defineStore('achievements', {
         totalPoints: user.points,
         purchaseRounds: shopping.purchaseRounds,
         maxStreak: diet.maxStreak,
+        photoCount: diet.photoCount,
       }
     },
 

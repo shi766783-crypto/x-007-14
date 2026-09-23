@@ -9,6 +9,7 @@ const links = [
   { to: '/meal-plan', label: '每周食谱', icon: '📅' },
   { to: '/shopping', label: '采购清单', icon: '🛒' },
   { to: '/diet', label: '饮食记录', icon: '🍽️' },
+  { to: '/diet-album', label: '饮食相册', icon: '📷' },
   { to: '/dashboard', label: '饮食看板', icon: '📊' },
   { to: '/challenge', label: '清理挑战', icon: '🧹' },
   { to: '/achievements', label: '成就徽章', icon: '🏅' },

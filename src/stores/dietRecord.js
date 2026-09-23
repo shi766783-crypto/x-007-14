@@ -8,7 +8,7 @@ const KEY = 'diet-records'
 
 export const useDietRecordStore = defineStore('dietRecord', {
   state: () => ({
-    records: read(KEY, []), // [{ id, date, meal, dishes: [{ name, category }] }]
+    records: read(KEY, []), // [{ id, date, meal, photo, dishes: [{ name, category }] }]
   }),
 
   getters: {
@@ -23,6 +23,9 @@ export const useDietRecordStore = defineStore('dietRecord', {
       })
       return map
     },
+
+    // 某日是否有记录（用于打卡判断）
+    hasRecordOn: (state) => (date) => state.records.some((r) => r.date === date),
 
     // 某日某餐次的菜品
     mealDishes: (state) => (date, meal) => {
@@ -51,6 +54,46 @@ export const useDietRecordStore = defineStore('dietRecord', {
       const vals = days.map((d) => scores[d]).filter((s) => s !== undefined)
       if (!vals.length) return 0
       return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+    },
+
+    // 有照片的记录（新的在前）
+    photoRecords: (state) =>
+      state.records
+        .filter((r) => r.photo)
+        .sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date))),
+
+    // 累计打卡照片数
+    photoCount() {
+      return this.photoRecords.length
+    },
+
+    // 相册：按日期倒序分组，每天照片按 晚→早 排列
+    albumGroups() {
+      const groups = {}
+      this.photoRecords.forEach((r) => {
+        if (!groups[r.date]) groups[r.date] = { date: r.date, items: [] }
+        groups[r.date].items.push(r)
+      })
+      return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date))
+    },
+
+    // 当前连续打卡天数：今天已打卡则截至今天，否则截至昨天（再往前断档即为 0）
+    currentStreak() {
+      const dates = new Set(this.records.map((r) => r.date))
+      const shift = (key, n) => {
+        const d = new Date(key)
+        d.setDate(d.getDate() + n)
+        return toDateKey(d)
+      }
+      const today = toDateKey()
+      let day = dates.has(today) ? today : shift(today, -1)
+      if (!dates.has(day)) return 0
+      let streak = 0
+      while (dates.has(day)) {
+        streak++
+        day = shift(day, -1)
+      }
+      return streak
     },
 
     // 连续记录天数（最长连续）
@@ -90,11 +133,12 @@ export const useDietRecordStore = defineStore('dietRecord', {
       write(KEY, this.records)
     },
 
-    addRecord(date, meal, dishes) {
+    addRecord(date, meal, dishes, photo = '') {
       const rec = {
         id: uid('rec'),
         date,
         meal,
+        photo: photo || '',
         dishes: dishes.map((d) => ({ name: d.name, category: d.category || '其他' })),
       }
       this.records.push(rec)

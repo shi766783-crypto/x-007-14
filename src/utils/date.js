@@ -40,6 +40,18 @@ export function formatDate(key) {
   return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
+const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+// 日期对应的中文星期
+export function weekdayLabel(key) {
+  return WEEKDAY_LABELS[parseDateKey(key).getDay()]
+}
+
+// 长日期格式，如 9月23日 周二
+export function formatLongDate(key) {
+  return `${formatDate(key)} ${weekdayLabel(key)}`
+}
+
 // 获取本周周一对应的日期 key
 export function currentWeekStart(today = new Date()) {
   const day = today.getDay() // 0=周日

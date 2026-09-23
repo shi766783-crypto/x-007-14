@@ -9,6 +9,9 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseTag from '@/components/common/BaseTag.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import SimpleChart from '@/components/common/SimpleChart.vue'
+import PhotoUpload from '@/components/common/PhotoUpload.vue'
+import PhotoViewer from '@/components/common/PhotoViewer.vue'
+import StreakBanner from '@/components/diet/StreakBanner.vue'
 
 const diet = useDietRecordStore()
 const mealPlan = useMealPlanStore()
@@ -16,7 +19,18 @@ const mealPlan = useMealPlanStore()
 const date = ref(toDateKey())
 const meal = ref('早餐')
 const dishes = ref([{ name: '', category: '蔬菜' }])
+const photo = ref('')
 const weekDates = weekDateKeys()
+
+const viewerShow = ref(false)
+const viewerSrc = ref('')
+const viewerTitle = ref('')
+
+function openViewer(rec) {
+  viewerSrc.value = rec.photo
+  viewerTitle.value = `${rec.date} ${MEAL_ICONS[rec.meal] || ''} ${rec.meal}`
+  viewerShow.value = true
+}
 
 const dayRecords = computed(() => diet.records.filter((r) => r.date === date.value))
 const dayDishes = computed(() => dayRecords.value.flatMap((r) => r.dishes))
@@ -53,10 +67,12 @@ function importFromPlan() {
 }
 
 function save() {
+  // 允许只拍照打卡：没有菜名但有照片也可以保存
   const valid = dishes.value.filter((d) => d.name.trim())
-  if (!valid.length) return
-  diet.addRecord(date.value, meal.value, valid)
+  if (!valid.length && !photo.value) return
+  diet.addRecord(date.value, meal.value, valid, photo.value)
   dishes.value = [{ name: '', category: '蔬菜' }]
+  photo.value = ''
 }
 
 function removeRecord(id) {
@@ -69,6 +85,8 @@ function removeRecord(id) {
     <div class="page-head">
       <h2>🍽️ 每日饮食记录</h2>
     </div>
+
+    <StreakBanner class="streak" />
 
     <div class="card">
       <div class="section-title">记录一餐</div>
@@ -92,12 +110,18 @@ function removeRecord(id) {
 
       <div class="dish-editor">
         <div v-for="(d, i) in dishes" :key="i" class="dish-row">
-          <input v-model="d.name" type="text" placeholder="菜品名" class="grow" />
+          <input v-model="d.name" type="text" placeholder="菜品名（只想拍照打卡可留空）" class="grow" />
           <select v-model="d.category">
             <option v-for="c in DISH_CATEGORIES" :key="c" :value="c">{{ c }}</option>
           </select>
           <button class="del" @click="removeDish(i)">✕</button>
         </div>
+
+        <div class="photo-row">
+          <PhotoUpload v-model="photo" capture label="拍照打卡" alt="本餐照片" />
+          <div class="photo-tip muted">拍一张美食照片，加入你的饮食相册</div>
+        </div>
+
         <div class="editor-actions">
           <BaseButton size="sm" variant="ghost" @click="addDish">+ 加一道菜</BaseButton>
           <BaseButton size="sm" @click="save">保存记录</BaseButton>
@@ -108,17 +132,28 @@ function removeRecord(id) {
     <div class="card">
       <div class="section-title">
         <span>{{ date }} 记录</span>
-        <BaseTag :text="`${dayScore} 分 · ${score.label}`" :color="score.color" />
+        <span class="title-right">
+          <BaseTag :text="`${dayScore} 分 · ${score.label}`" :color="score.color" />
+          <router-link to="/diet-album" class="link">📷 饮食相册</router-link>
+        </span>
       </div>
       <BaseEmpty v-if="!dayRecords.length" emoji="🍚" text="当天还没有记录" />
       <div v-else class="day-records">
         <div v-for="r in dayRecords" :key="r.id" class="rec">
-          <div class="rec-head">
-            <span class="meal">{{ MEAL_ICONS[r.meal] }} {{ r.meal }}</span>
-            <button class="del" @click="removeRecord(r.id)">✕</button>
-          </div>
-          <div class="rec-dishes">
-            <BaseTag v-for="(d, i) in r.dishes" :key="i" :category="d.category" :text="d.name" />
+          <div class="rec-main">
+            <div v-if="r.photo" class="rec-photo" @click="openViewer(r)">
+              <img :src="r.photo" :alt="`${r.meal}照片`" />
+            </div>
+            <div class="rec-body">
+              <div class="rec-head">
+                <span class="meal">{{ MEAL_ICONS[r.meal] }} {{ r.meal }}</span>
+                <button class="del" @click="removeRecord(r.id)">✕</button>
+              </div>
+              <div v-if="r.dishes.length" class="rec-dishes">
+                <BaseTag v-for="(d, i) in r.dishes" :key="i" :category="d.category" :text="d.name" />
+              </div>
+              <div v-else class="muted photo-only">📷 仅拍照打卡</div>
+            </div>
           </div>
         </div>
       </div>
@@ -128,12 +163,17 @@ function removeRecord(id) {
       <div class="section-title">本周营养评分趋势</div>
       <SimpleChart type="line" :labels="trendLabels" :data="trendData" color="#2196f3" :height="180" />
     </div>
+
+    <PhotoViewer :show="viewerShow" :src="viewerSrc" :title="viewerTitle" @close="viewerShow = false" />
   </div>
 </template>
 
 <style scoped>
 .page-head h2 {
   margin: 0 0 16px;
+}
+.streak {
+  margin-bottom: 16px;
 }
 .form-grid {
   display: grid;
@@ -193,10 +233,27 @@ function removeRecord(id) {
   border-radius: 6px;
   cursor: pointer;
 }
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0 4px;
+}
+.photo-tip {
+  font-size: 12px;
+}
 .editor-actions {
   display: flex;
   justify-content: space-between;
   margin-top: 8px;
+}
+.title-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.link {
+  font-size: 13px;
 }
 .day-records {
   display: flex;
@@ -207,6 +264,31 @@ function removeRecord(id) {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
+}
+.rec-main {
+  display: flex;
+  gap: 12px;
+}
+.rec-photo {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.rec-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+.rec-photo:hover img {
+  transform: scale(1.05);
+}
+.rec-body {
+  flex: 1;
+  min-width: 0;
 }
 .rec-head {
   display: flex;
@@ -221,5 +303,17 @@ function removeRecord(id) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.photo-only {
+  font-size: 12px;
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .actions-col {
+    grid-column: 1 / -1;
+  }
 }
 </style>
